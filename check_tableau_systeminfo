@@ -1,4 +1,4 @@
-#!/usr/bin/env ruby -w
+#!/usr/bin/env ruby
 
 #       Usage: check_tableau_systeminfo -H <hostname>|-f [<file.xml>]
 # Description: check_tableau_systeminfo parses Tableau's systeminfo and reports Nagios status
@@ -6,6 +6,7 @@
 #              + CRITICAL: any service instance that is DOWN 
 #              +  WARNING: too many BUSY instances (per busy_thres)
 #      Author: gerir_at_ning_dot_com
+#      Updates by: sean_at_squareup.com
 
    require 'rubygems'
    require 'optparse'
@@ -26,7 +27,7 @@
    
    # plugin output and exit code
    def nagiosMessageExit(status,message=nil)
-      unless message : message = $ns[status]['m'] end
+      unless message then message = $ns[status]['m'] end
       message.strip!
       puts "#{$ns[status]['s']}: #{message}"
       exit $ns[status]['e']
@@ -82,7 +83,7 @@
 # fetch systeminfo
  # filename (useful for debugging)
    if options[:filename]
-      if options[:verbose] : puts "reading file #{options[:filename]}" end
+      if options[:verbose] then puts "reading file #{options[:filename]}" end
       begin    
          systeminfo = XmlSimple.xml_in(options[:filename], { 'KeyAttr' => 'name' })
       rescue ArgumentError
@@ -90,14 +91,13 @@
       end
  # hostname
    elsif options[:hostname]
-      if options[:verbose] : puts "contacting host #{options[:hostname]}" end
+      if options[:verbose] then puts "contacting host #{options[:hostname]}" end
       begin
-         url = URI.parse("http://#{options[:hostname]}/admin/systeminfo")
-         req = Net::HTTP::Get.new(url.path)
-         res = Net::HTTP.start(url.host, url.port) {|http|
-            http.request(req)
-         }
-         if options[:verbose] : puts "parsing systeminfo\n#{res.body}" end
+         uri = URI.parse("https://#{options[:hostname]}/admin/systeminfo.xml")
+         req = Net::HTTP.new(uri.host, uri.port)
+         req.use_ssl = true
+         res = req.get(uri.request_uri)
+         if options[:verbose] then puts "parsing systeminfo\n#{res.body}" end
          systeminfo = XmlSimple.xml_in(res.body, { 'KeyAttr' => 'name' })
       rescue Errno::ECONNREFUSED
          nagiosMessageExit('C', "#{$!}")
@@ -109,30 +109,32 @@
    end
 
 # analyze systeminfo   
-   if systeminfo["machines"]
-      systeminfo["machines"][0]["machine"]["Primary"].each do |service|
+  if systeminfo["machines"]
+    systeminfo["machines"][0]["machine"].each do |machine|
          busy_c = 0
-         service[1].each do |serviceinstance|
-            if (serviceinstance["status"].casecmp "down") == 0
+         machine[1].each do |service|
+           service[1].each do |serviceinstance|
+             if (serviceinstance["status"].casecmp "down") == 0
                $ns['C']['m'] += "#{service[0]} #{serviceinstance["worker"]} is DOWN! "
                $ns['C']['f'] = true
                break
-            elsif (serviceinstance["status"].casecmp "busy") == 0
+             elsif (serviceinstance["status"].casecmp "busy") == 0
                busy_c += 1
-            end
+             end
+           end
          end
          break if $ns['C']['f']
       
-         if busy_thres['W'][service[0]]
-            if busy_c >= busy_thres['W'][service[0]]
+         if busy_thres['W'][machine[0]]
+            if busy_c >= busy_thres['W'][machine[0]]
                $ns['W']['f'] = true
-               $ns['W']['m'] += "#{service[0]} has more than #{busy_c} instances in BUSY state "
+               $ns['W']['m'] += "#{machine[0]} has more than #{busy_c} instances in BUSY state "
             end
          end
       end
-   else
-      nagiosMessageExit('U', "unable to parse systeminfo")
-   end
+  else
+    nagiosMessageExit('U', "unable to parse systeminfo")
+  end
 
 # report status   
    if $ns['C']['f']
@@ -142,3 +144,6 @@
    else
       nagiosMessageExit('O')
    end
+
+
+
