@@ -39,13 +39,18 @@
       options = {}
    
       optparse = OptionParser.new do |opts|
-         opts.banner = "usage: check_tableau_systeminfo -H <hostname>|-f <file.xml>"
+         opts.banner = "usage: check_tableau_systeminfo -H <hostname>|-f <file.xml> [--ssl|-S]"
   
          options[:hostname] = nil
          opts.on( '-H', '--hostname HOSTNAME', 'Hostname' ) do |hostname|
             options[:hostname] = hostname
          end
          
+         options[:ssl] = nil
+         opts.on( '-S', '--ssl', 'SSL' ) do
+            options[:ssl] = true
+         end
+                  
          options[:filename] = nil
          opts.on( '-f', '--filename FILENAME', 'Filename' ) do |filename|
             options[:filename] = filename
@@ -93,9 +98,13 @@
    elsif options[:hostname]
       if options[:verbose] then puts "contacting host #{options[:hostname]}" end
       begin
-         uri = URI.parse("https://#{options[:hostname]}/admin/systeminfo.xml")
+         if options[:ssl] 
+           uri = URI.parse("https://#{options[:hostname]}/admin/systeminfo.xml")
+         else
+           uri = URI.parse("http://#{options[:hostname]}/admin/systeminfo.xml")
+         end
          req = Net::HTTP.new(uri.host, uri.port)
-         req.use_ssl = true
+         if options[:ssl] then req.use_ssl = true end
          res = req.get(uri.request_uri)
          if options[:verbose] then puts "parsing systeminfo\n#{res.body}" end
          systeminfo = XmlSimple.xml_in(res.body, { 'KeyAttr' => 'name' })
