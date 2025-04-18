@@ -8,11 +8,12 @@ REQUIREMENTS:
  + you must whitelist the Nagios servers in the Tableau server
 
 USAGE:
- + check_tableau_systeinfo [-v] -H <hostname>|-f <file.xml>
+ + check_tableau_systeinfo [-v] -H <hostname>|-f <file.xml> [--ssl|-S]
    - <hostname>: the Tableau server to check
    - <file.xml>: an XML file containing Tableau status (useful for testing)
    - "-v" is for verbose
-   - "-H" and "-f" are mutually exclussive
+   - "-H" and "-f" are mutually exclusive
+   - "-S" and "-ssl" turns on SSL (https://) when checking with hostname.
 
 CONFIGURARTION
  + Apologies, configuration is currently hard-coded in the script; edit
